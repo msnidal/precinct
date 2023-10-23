@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+
+[project]
+name = "precinct"
+version = "0.1.0"
+description = "SQL query LLM copilot"
+authors = [
+  {name = "mark.snidal@gmail.com", email = "mark.snidal@gmail.com"}
+]
+license = {file = "LICENSE"}
+dependencies = [
+  "psycopg2 ~= 2.9",
+  "types-psycopg2 ~= 2.9",
+  "click ~= 8.1",
+  "openai ~= 0.28",
+  "pydantic ~= 2.4",
+  "sqlparse ~= 0.4",
+  "instructor ~= 0.2",
+  "pyperclip ~= 1.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black==23.10.0",
+    "isort==5.12.0"
+]
+
+[project.scripts]
+precinct = "precinct.main:main"
+
+[options]
+python_requires = ">=3.7"
