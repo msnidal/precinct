@@ -18,6 +18,7 @@ dependencies = [
   "sqlparse ~= 0.4",
   "instructor ~= 0.2",
   "pyperclip ~= 1.8",
+  "cachetools ~= 5.3.2",
 ]
 
 [project.optional-dependencies]

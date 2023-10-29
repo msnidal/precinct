@@ -2,124 +2,35 @@ import os
 import configparser
 import pyperclip
 import psycopg2
-import sqlparse
-import openai
+import psycopg2.sql
+import psycopg2.extensions
 import click
-import yaml
-import instructor
-from pydantic import BaseModel
-from typing import List, Dict, Union, Set
+import logging
+from typing import Optional
 
-# Support openai function calling with pydantic base model
-instructor.patch()
+from precinct.models import PrecinctQuery
 
-
-class ExplainQueryOutput(BaseModel):
-    structure: str
-    goal: str
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
-class OptimizeQueryOutput(BaseModel):
-    query: str
-    explanation: str
-
-
-def load_prompts(file_path="prompts.yml"):
-    with open(file_path, "r") as prompts_file:
-        return yaml.safe_load(prompts_file)
-
-
-def is_valid_query(conn, query: str) -> bool:
-    parsed = sqlparse.parse(query)
-    if not parsed:
-        return False
-
-    with conn.cursor() as cursor:
-        try:
-            cursor.execute(
-                psycopg2.sql.SQL("PREPARE stmt AS {0}").format(psycopg2.sql.SQL(query))
-            )
-        except psycopg2.Error:
-            return False
-        finally:
-            cursor.execute("DEALLOCATE stmt")
-    return True
-
-
-def extract_tables(query: str) -> Set[str]:
-    parsed = sqlparse.parse(query)
-    table_names = set()
-
-    for statement in parsed:
-        from_seen = False
-        for token in statement.tokens:
-            if from_seen:
-                if token.ttype is None:
-                    table_names.add(token.get_real_name())
-                if token.value.upper() == "JOIN":
-                    table_names.update(
-                        token.get_real_name()
-                        for join_token in token.tokens
-                        if join_token.ttype is None
-                    )
-            from_seen = token.value.upper() == "FROM"
-
-    return table_names
-
-
-def fetch_indices(conn, table_names: Set[str]) -> List[Dict[str, Union[str, int]]]:
-    query = """
-    SELECT
-        indexname AS index_name,
-        indexdef AS index_definition
-    FROM pg_indexes
-    WHERE tablename = %s;
-    """
-    indices = []
-    with conn.cursor() as cursor:
-        for table in table_names:
-            cursor.execute(query, (table,))
-            indices.extend(
-                {
-                    "table": table,
-                    "index_name": index[0],
-                    "index_definition": index[1],
-                }
-                for index in cursor.fetchall()
-            )
-    return indices
-
-
-def execute_query_analysis(conn, query: str) -> List[str]:
-    with conn.cursor() as cursor:
-        cursor.execute(f"EXPLAIN ANALYZE {query}")
-        return [plan[0] for plan in cursor.fetchall()]
-
-
-def run_ai_prompt(prompts: Dict[str, str], query: str, model: BaseModel) -> BaseModel:
-    return openai.ChatCompletion.create(
-        model="gpt-4",
-        response_model=model,
-        messages=[
-            {"role": "system", "content": prompts["explain"]},
-            {"role": "user", "content": query},
-        ],
+@click.command(
+    help=(
+        "\nPrecinct: A SQL query LLM copilot for analyzing queries, suggesting indices, "
+        "and providing optimizations. Currently supports PostgreSQL.\n\n"
+        "Example:\n\n"
+        '    precinct "SELECT * FROM table;"\n\n'
+        "    precinct --file path/to/your/file.sql\n\n"
     )
-
-
-def get_optimization_query(
-    query: str, indices: List[Dict[str, Union[str, int]]], plan: List[str]
-) -> str:
-    pass
-
-
-@click.group()
-def main():
-    pass
-
-
-@main.command()
-@click.argument("input_file", type=click.File("r"))
+)
+@click.argument("input", required=True)
+@click.option(
+    "--file",
+    "is_file",
+    is_flag=True,
+    default=False,
+    help="Indicate that the input is a file path.",
+)
 @click.option(
     "--service",
     "service_name",
@@ -134,83 +45,51 @@ def main():
     default=False,
     help="Copy optimized query to clipboard.",
 )
-def file(input_file, service_name, copy):
-    query = input_file.read()
-    process_query(query, service_name, input_file=input_file, copy=copy)
-
-
-@main.command()
-@click.argument("input_query", type=str)
 @click.option(
-    "--service",
-    "service_name",
+    "--output-file",
+    "output_file",
     type=str,
     default=None,
-    help="PostgreSQL service name for connection.",
+    help="Optional output file to write optimized query.",
 )
-@click.option(
-    "--copy",
-    "copy",
-    is_flag=True,
-    default=False,
-    help="Copy optimized query to clipboard.",
-)
-def query(input_query, service_name, copy):
-    query = input_query
-    process_query(query, service_name, copy=copy)
+def main(input, is_file, service_name, copy, output_file):
+    if is_file:
+        with open(input, "r") as input_file:
+            query = input_file.read()
+    else:
+        query = input
 
-
-def process_query(
-    query: str,
-    service_name: str,
-    output_file: str = None,
-    copy_to_clipboard: bool = False,
-):
-    service_file_path = os.getenv(
-        "PGSERVICEFILE", os.path.expanduser("~/.pg_service.conf")
-    )
-    config = configparser.ConfigParser()
-    config.read(service_file_path)
-
-    if service_name not in config.sections():
-        print("Invalid service name.")
-        return
-
-    conn = (
-        psycopg2.connect(service=service_name) if service_name else psycopg2.connect()
-    )
-    if not is_valid_query(conn, query):
+    conn = get_connection(service_name)
+    try:
+        precinct_query = PrecinctQuery(query, conn)
+    except ValueError:
         print("Invalid query.")
         return
 
-    prompts = load_prompts()
-
     ## First step: think through the query step by step and explain the goal of the query and the main steps
     # This will be offered back to the user to confirm and then included as context in the optimization step
-    explanation = run_ai_prompt(prompts, query, ExplainQueryOutput)
-    # TODO: Revise thee goal
-    print(f"Query: {query}")
-    print(f"Explanation: {explanation.goal}")
-    confirm = input("Do you want to proceed? (y/n): ")
-    if confirm.lower() != "y":
-        print("Operation cancelled.")
-        return
-
-    ## Second step: check for relevant tables, indices, and run EXPLAIN ANALYZE
-    # Check for relevant tables, indices, and run EXPLAIN ANALYZE
-    tables = extract_tables(query)
-    indices = fetch_indices(conn, tables)
-    original_plan = execute_query_analysis(conn, query)
+    do_proceed = False
+    clarification = None
+    while not do_proceed:
+        explanation = precinct_query.get_query_summary(clarification)
+        # TODO: Revise thee goal
+        print(f"Query: {query}")
+        print(f"Goal: {explanation.goal}")
+        confirm = input(
+            "Issue clarification to goal (y) to proceed, or (q) to quit (y/q/[goal]): "
+        )
+        if confirm.lower() != "y":
+            do_proceed = True
+        if confirm.lower() == "q":
+            return
+        else:
+            clarification = confirm
 
     ## Third step: synthesize query, indices, and plan into a query to get the diff
     # Synthesize query, indices, and plan into a query to get the diff
     # TODO: loop here? also validate the output query
-    optimization_query = get_optimization_query(
-        query, indices, original_plan, explanation
-    )
-
-    optimization = run_ai_prompt(prompts, optimization_query, OptimizeQueryOutput)
-    revised_plan = execute_query_analysis(conn, optimization.query)
+    new_query, explanation = precinct_query.get_optimized_query(conn)
+    print(f"Optimized query: {new_query.query_str}\n\nExplanation: {explanation}")
 
     action_prompt = "What would you like to do? (execute/cancel)"
     if output_file:
@@ -220,15 +99,54 @@ def process_query(
 
     if action == "overwrite" and output_file:
         with open(output_file, "w") as f:
-            f.write(optimization.query)
+            f.write(new_query.query_str)
     elif action == "execute":
         with conn.cursor() as cursor:
-            cursor.execute(optimization.query)
+            cursor.execute(new_query.query_str)
     elif action == "cancel":
         print("Operation cancelled.")
 
-    if copy_to_clipboard:
-        pyperclip.copy(optimization.query)
+    if copy:
+        pyperclip.copy(new_query.query_str)
+
+
+def get_connection(
+    service_name: Optional[str] = None,
+) -> psycopg2.extensions.connection:
+    service_file_path = os.getenv(
+        "PGSERVICEFILE", os.path.expanduser("~/.pg_service.conf")
+    )
+
+    # Check if service file exists
+    if not os.path.exists(service_file_path):
+        logger.error(f"Service file not found: {service_file_path}")
+        raise FileNotFoundError(f"Service file not found: {service_file_path}")
+
+    config = configparser.ConfigParser()
+    config.read(service_file_path)
+
+    if not service_name:
+        # Use the first service name if none is provided
+        if config.sections():
+            service_name = config.sections()[0]
+            logger.info(
+                f"No service name provided. Using the first service: {service_name}"
+            )
+        else:
+            logger.error("No service sections found in the service file.")
+            raise ValueError("No service sections found in the service file.")
+
+    if service_name not in config.sections():
+        logger.error(f"Invalid service name: {service_name}")
+        raise ValueError(f"Invalid service name: {service_name}")
+
+    try:
+        conn = psycopg2.connect(service=service_name)
+        logger.info(f"Connection established using service: {service_name}")
+        return conn
+    except Exception as e:
+        logger.error(f"Failed to establish connection: {str(e)}")
+        raise
 
 
 if __name__ == "__main__":
