@@ -22,7 +22,7 @@ instructor.patch()
 
 
 def load_prompts(
-    file_path: str = None,
+    file_path: Optional[str] = None,
 ) -> Dict[str, Union[str, Dict[str, str]]]:
     if file_path is None:
         current_dir = os.path.dirname(os.path.abspath(__file__))
