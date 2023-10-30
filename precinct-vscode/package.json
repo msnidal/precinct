@@ -1,0 +1,40 @@
+{
+  "name": "precinct-sql",
+  "displayName": "Precinct SQL",
+  "description": "SQL copilot to optimize your queries with GPT",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.83.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:sql"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [{
+      "command": "precinct-sql.optimizeSQL",
+      "title": "Optimize SQL"
+    }]
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "pretest": "yarn run lint",
+    "test": "node ./test/runTest.js"
+  },
+  "dependencies": {
+    "diff": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.83.0",
+    "@types/mocha": "^10.0.3",
+    "@types/node": "18.x",
+    "eslint": "^8.52.0",
+    "glob": "^10.3.10",
+    "mocha": "^10.2.0",
+    "typescript": "^5.2.2",
+    "@vscode/test-electron": "^2.3.6"
+  }
+}
