@@ -1,34 +1,35 @@
 const path = require('path');
 const Mocha = require('mocha');
-const glob = require('glob');
+const {glob} = require("glob")
 
-async function run() {
-	// Create the mocha test
+function run(callback) {
 	const mocha = new Mocha({
 		ui: 'tdd',
-		color: true
+		color: true,
 	});
 
 	const testsRoot = path.resolve(__dirname, '..');
-	const files = await glob('**/**.test.js', { cwd: testsRoot });
 
-	// Add files to the test suite
-	files.forEach(f => mocha.addFile(path.resolve(testsRoot, f)));
+	// Use the callback version of glob here.
+	glob('**/*.test.js', { cwd: testsRoot }, (err, files) => {
+		if (err) {
+			console.error('Error finding test files:', err);
+			return callback(err);
+		}
 
-	try {
-		return new Promise((c, e) => {
-			// Run the mocha test
-			mocha.run(failures => {
-				if (failures > 0) {
-					e(new Error(`${failures} tests failed.`));
-				} else {
-					c();
-				}
-			});
+		files.forEach((file) => {
+			mocha.addFile(path.resolve(testsRoot, file));
 		});
-	} catch (err) {
-		console.error(err);
-	}
+
+		// Run the Mocha test suite and pass results to callback
+		mocha.run((failures) => {
+			if (failures > 0) {
+				callback(new Error(`${failures} tests failed.`));
+			} else {
+				callback(null); // null is typically used to signify "no error" in callback patterns
+			}
+		});
+	});
 }
 
 module.exports = {

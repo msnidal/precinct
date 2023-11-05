@@ -1,70 +1,45 @@
 # Precinct SQL: The SQL AI Copilot
 
-Precinct SQL is your AI copilot for analyzing and optimizing SQL queries right within VS Code. Built as an extension, Precinct SQL operates on `.sql` files to provide actionable insights and automatic query optimizations.
+Welcome to Precinct SQL - your artificial intelligence assistant for optimizing SQL queries within Visual Studio Code. Utilize advanced AI to streamline and improve your database queries directly from your editor.
 
 ## Features
 
-* **SQL Analysis and Optimization**:
-  * Run the Precinct command on your SQL file to get an analysis of your query.
-  * Precinct will describe a goal based on the analysis which the user can correct and submit for further review.
-  * Once the corrections are submitted, Precinct will propose an optimized query.
-  * The proposal is presented as a diff against the original query, along with a textual description of the changes.
+- **SQL Query Optimization**: Improve your SQL with AI-powered suggestions.
+- **Interactive Goal Setting**: Refine AI analysis goals through user interaction.
+- **Diff View**: Compare and review optimization suggestions with your original query.
+- **Streamlined VS Code Integration**: Experience a frictionless workflow within the editor's environment.
 
-* **Integrated UX**:
-  * Precinct SQL is designed to work seamlessly with VS Code's UI, providing a natural, intuitive experience.
+## Prerequisites
 
-* **Command Execution**:
-  * Execute the Precinct command via a keyboard shortcut, a button in the editor toolbar, or from the command palette.
-
-* **Result Presentation**:
-  * Results are displayed inline, with options to accept or reject the proposed query optimizations.
-
-![Precinct SQL in action](images/precinct-in-action.png)
-
-## Requirements
-
-* [Node.js](https://nodejs.org/)
-* [Python](https://www.python.org/downloads/)
-* The Precinct CLI tool (installed either globally or via the extension)
+- [Node.js](https://nodejs.org/en/download/)
+- [Python](https://www.python.org/downloads/)
+- Precinct CLI: Must be installed globally or accessible through the extension's configuration.
 
 ## Extension Settings
 
-This extension contributes the following settings:
+Modify these settings to tailor the extension to your needs:
 
-* `precinctSQL.enable`: Enable/disable this extension.
-* `precinctSQL.cliPath`: Path to the Precinct CLI tool (if installed globally).
+- `precinct-sql.model`: Select the AI model ('gpt-4' or 'gpt-3.5-turbo').
+- `precinct-sql.connectionString`: Define the PostgreSQL connection string for analysis.
+- `precinct-sql.cliPath`: Specify a custom path to the Precinct CLI.
 
-## Getting Started
+## Quickstart Guide
 
-1. Install Precinct SQL from the VS Code Marketplace.
-2. Open a `.sql` file in VS Code.
-3. Run the Precinct command via your preferred method (keyboard shortcut, editor toolbar button, or command palette).
-4. Review the proposed query optimizations, accept or reject as needed.
-5. Enjoy optimized SQL queries and a smoother development experience!
+1. Install the extension from the VS Code Marketplace.
+2. Configure the necessary settings (`precinct-sql.model`, `precinct-sql.connectionString`).
+3. Invoke the command `Precinct: Optimize SQL` for analysis.
+4. Accept or adjust the optimization proposals as needed.
+5. Experience enhanced SQL performance.
 
-## Known Issues
+## Issues and Contributions
 
-Please report any issues or feature requests on the [GitHub repository](https://github.com/your-username/precinct-sql).
+Encounter a glitch? Have suggestions? Contribute or report issues [here](https://github.com/msnidal/precinct).
 
-## Release Notes
+## What's New in 0.1.0
 
-### 1.0.0
+- Initial launch with AI-powered optimization.
+- New configuration options for enhanced control.
 
-Initial release of Precinct SQL.
+For detailed release notes, see the [changelog](CHANGELOG.md).
 
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+**Happy programming with your SQL query AI copilot!**

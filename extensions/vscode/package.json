@@ -1,4 +1,5 @@
 {
+  "publisher": "msnidal",
   "name": "precinct-sql",
   "displayName": "Precinct SQL",
   "description": "SQL copilot to optimize your queries with GPT",
@@ -14,25 +15,35 @@
   ],
   "main": "./extension.js",
   "contributes": {
-    "commands": [{
-      "command": "precinct-sql.optimizeSQL",
-      "title": "Optimize SQL"
-    }],
+    "commands": [
+      {
+        "command": "precinct-sql.optimizeSQL",
+        "title": "Precinct: Optimize SQL"
+      }
+    ],
     "configuration": {
-        "title": "Precinct SQL Optimization",
-        "properties": {
-            "precinct-sql.model": {
-                "type": "string",
-                "default": "gpt-4",
-                "enum": ["gpt-4", "gpt-3.5-turbo"],
-                "description": "Choose the optimization model for Precinct."
-            },
-            "precinct-sql.connectionString": {
-                "type": "string",
-                "default": "",
-                "description": "The PostgreSQL connection string."
-            }
+      "title": "Precinct SQL Optimization",
+      "properties": {
+        "precinct-sql.model": {
+          "type": "string",
+          "default": "gpt-4",
+          "enum": [
+            "gpt-4",
+            "gpt-3.5-turbo"
+          ],
+          "description": "Choose the optimization model for Precinct."
+        },
+        "precinct-sql.connectionString": {
+          "type": "string",
+          "default": "",
+          "description": "The PostgreSQL connection string."
+        },
+        "precinct-sql.cliPath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path or command to execute Precinct."
         }
+      }
     }
   },
   "scripts": {
@@ -44,13 +55,13 @@
     "diff": "^5.0.0"
   },
   "devDependencies": {
-    "@types/vscode": "^1.83.0",
     "@types/mocha": "^10.0.3",
     "@types/node": "18.x",
+    "@types/vscode": "^1.83.0",
+    "@vscode/test-electron": "^2.3.6",
     "eslint": "^8.52.0",
     "glob": "^10.3.10",
     "mocha": "^10.2.0",
-    "typescript": "^5.2.2",
-    "@vscode/test-electron": "^2.3.6"
+    "typescript": "^5.2.2"
   }
 }
