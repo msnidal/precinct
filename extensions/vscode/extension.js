@@ -7,70 +7,36 @@ const os = require('os');
 
 function activate(context) {
 	console.log('Precinct SQL extension activating...');
-	ensurePrecinctInstalled()
-		.then(() => {
-			let disposable = vscode.commands.registerCommand('precinct-sql.optimizeSQL', async function () {
-				let editor = vscode.window.activeTextEditor;
-				if (!editor) {
-					vscode.window.showWarningMessage("No active text editor found");
-					return;
-				}
-
-				let originalUri = editor.document.uri;
-				const filePath = originalUri.fsPath;
-				const precinctModel = vscode.workspace.getConfiguration('precinct-sql').get('model');
-				const connectionString = vscode.workspace.getConfiguration('precinct-sql').get('connectionString');
-				if (!connectionString) {
-					vscode.window.showErrorMessage("PostgreSQL connection string is not set in settings");
-					vscode.commands.executeCommand('workbench.action.openSettings', 'precinct-sql.connectionString');
-					return;
-				}
-				const customPath = vscode.workspace.getConfiguration('precinct-sql').get('cliPath');
-				const precinctCommand = customPath || 'precinct';
-
-				try {
-					await executePrecinct(filePath, precinctModel, connectionString, editor, precinctCommand);
-				} catch (error) {
-					if (error.message.includes('command not found') && !customPath) {
-						offerToInstallPrecinct();
-					} else {
-						vscode.window.showErrorMessage("Error optimizing SQL: " + error.message);
-					}
-				}
-			});
-			context.subscriptions.push(disposable);
-		})
-		.catch(error => {
-			vscode.window.showErrorMessage("Precinct Installation Error: " + error.message);
-		});
-}
-
-async function ensurePrecinctInstalled() {
-	try {
-		const { stdout } = await execAsync('pip show precinct');
-		if (!stdout.includes('Name: precinct')) {
-			throw new Error('Precinct is not installed');
+	let disposable = vscode.commands.registerCommand('precinct-sql.optimizeSQL', async function () {
+		let editor = vscode.window.activeTextEditor;
+		if (!editor) {
+			vscode.window.showWarningMessage("No active text editor found");
+			return;
 		}
-	} catch (error) {
-		await createVirtualEnv();
-	}
-}
 
-async function createVirtualEnv() {
-	await execAsync('python -m venv precinct-pyenv && source precinct-pyenv/bin/activate && pip install precinct');
-	// Set flag here if needed for cleanup later
-}
+		let originalUri = editor.document.uri;
+		const filePath = originalUri.fsPath;
+		const precinctModel = vscode.workspace.getConfiguration('precinct-sql').get('model');
+		const connectionString = vscode.workspace.getConfiguration('precinct-sql').get('connectionString');
+		if (!connectionString) {
+			vscode.window.showErrorMessage("PostgreSQL connection string is not set in settings");
+			vscode.commands.executeCommand('workbench.action.openSettings', 'precinct-sql.connectionString');
+			return;
+		}
+		const customPath = vscode.workspace.getConfiguration('precinct-sql').get('cliPath');
+		const precinctCommand = customPath || 'precinct';
 
-async function execAsync(command) {
-	return new Promise((resolve, reject) => {
-		exec(command, (err, stdout, stderr) => {
-			if (err) {
-				reject({ message: stderr });
+		try {
+			await executePrecinct(filePath, precinctModel, connectionString, editor, precinctCommand);
+		} catch (error) {
+			if (error.message.includes('command not found') && !customPath) {
+				offerToInstallPrecinct();
 			} else {
-				resolve({ stdout });
+				vscode.window.showErrorMessage("Error optimizing SQL: " + error.message);
 			}
-		});
+		}
 	});
+	context.subscriptions.push(disposable);
 }
 
 async function executePrecinct(filePath, precinctModel, connectionString, editor, precinctCommand) {
