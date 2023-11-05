@@ -2,7 +2,7 @@
   "name": "precinct-sql",
   "displayName": "Precinct SQL",
   "description": "SQL copilot to optimize your queries with GPT",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "engines": {
     "vscode": "^1.83.0"
   },
@@ -17,7 +17,23 @@
     "commands": [{
       "command": "precinct-sql.optimizeSQL",
       "title": "Optimize SQL"
-    }]
+    }],
+    "configuration": {
+        "title": "Precinct SQL Optimization",
+        "properties": {
+            "precinct-sql.model": {
+                "type": "string",
+                "default": "gpt-4",
+                "enum": ["gpt-4", "gpt-3.5-turbo"],
+                "description": "Choose the optimization model for Precinct."
+            },
+            "precinct-sql.connectionString": {
+                "type": "string",
+                "default": "",
+                "description": "The PostgreSQL connection string."
+            }
+        }
+    }
   },
   "scripts": {
     "lint": "eslint .",

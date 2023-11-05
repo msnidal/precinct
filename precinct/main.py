@@ -1,12 +1,12 @@
 import pyperclip
 import click
-import logging
+import json
 
-from precinct.models import PrecinctQuery
+from precinct.models import PrecinctQuery, GPTModel
 from precinct.connection import get_connection
+from precinct.logging import get_logger
+logger = get_logger()
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 
 @click.command(
@@ -32,17 +32,40 @@ logging.basicConfig(level=logging.INFO)
     type=str,
     help="PostgreSQL standard connection string, ie. 'postgresql://username:password@host:port/database'",
 )
-@click.option("--verbose", is_flag=True, help="Enable verbose mode for more output.")
-def main(query, file, service, connection_string, verbose):
-    # Logging setup
-    if verbose:
-        logging.basicConfig(level=logging.DEBUG)
-    else:
-        logging.basicConfig(level=logging.INFO)
-
+@click.option(
+    "--model",
+    type=click.Choice([GPTModel.GPT_4, GPTModel.GPT_3_5_TURBO]),
+    default=GPTModel.GPT_4,
+    help="Model to use.",
+)
+@click.option(
+    "--json", "json_io", is_flag=True, help="Enable VSCode optimized JSON I/O mode."
+)
+def main(query, file, service, connection_string, model, json_io):
     if service and connection_string:
         raise click.BadParameter("Cannot use both --service and --connection-string.")
     conn = get_connection(service, connection_string)
+
+    # Special input mode for VSCode extension
+    if json_io:
+        # Switch to JSON I/O mode for interaction with VSCode
+        precinct_query = PrecinctQuery(query, conn, model)
+        explanation = precinct_query.get_query_summary()
+        # Output initial explanation in JSON
+        print(json.dumps({"query": query, "goal": explanation.goal}))
+
+        # Wait for JSON input from VSCode
+        input_json = json.loads(input())
+        user_modified_goal = input_json.get("goal")
+
+        # Perform optimization based on the modified goal
+        new_query, explanation = precinct_query.get_optimized_query(user_modified_goal)
+        print(
+            json.dumps(
+                {"optimized_query": new_query.query_str, "explanation": explanation}
+            )
+        )
+        return
 
     # Get query
     if query:
@@ -58,7 +81,7 @@ def main(query, file, service, connection_string, verbose):
 
     # Extract tables, indices, column properties, and analysis
     try:
-        precinct_query = PrecinctQuery(query, conn)
+        precinct_query = PrecinctQuery(query, conn, model)
     except ValueError:
         print("Invalid query.")
         return
@@ -84,7 +107,7 @@ def main(query, file, service, connection_string, verbose):
     attempts = 0
     while attempts < 3:
         try:
-            new_query, explanation = precinct_query.get_optimized_query(conn)
+            new_query, explanation = precinct_query.get_optimized_query()
             break
         except Exception:
             attempts += 1

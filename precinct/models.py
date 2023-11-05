@@ -5,25 +5,39 @@ import psycopg2.extensions
 import sqlparse
 import sqlparse.sql
 import openai
-import logging
 import os
 import instructor
 
-from pydantic import BaseModel
+from enum import Enum
 from typing import List, Dict, Set, Optional, Tuple, Union
+
+from pydantic import BaseModel
 from cachetools import cached, LRUCache
 from cachetools.keys import hashkey
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+from precinct.logging import get_logger
+
+logger = get_logger()
 
 # Support openai function calling with pydantic base model
 instructor.patch()
 
 
+class GPTModel(str, Enum):
+    GPT_4 = "gpt-4"
+    GPT_3_5_TURBO = "gpt-3.5-turbo"
+
+
 def load_prompts(
     file_path: Optional[str] = None,
 ) -> Dict[str, Union[str, Dict[str, str]]]:
+    """Load prompts from prompts.yml file.
+
+    Args:
+        file_path: The path to the prompts.yml file.
+    Returns:
+        Dict[str, Union[str, Dict[str, str]]]: The prompts.
+    """
     if file_path is None:
         current_dir = os.path.dirname(os.path.abspath(__file__))
         file_path = os.path.join(current_dir, "prompts.yml")
@@ -36,6 +50,13 @@ PROMPTS = load_prompts()
 
 
 class ExplainQueryInput(BaseModel):
+    """Input to the explain query prompt.
+
+    Attributes:
+        query: The SQL query as provided.
+        clarification: Optional clarification on the nature or functionality of the query.
+    """
+
     query: str
     clarification: Optional[str]
 
@@ -47,16 +68,40 @@ class ExplainQueryInput(BaseModel):
 
 
 class ExplainQueryOutput(BaseModel):
+    """Output from the explain query prompt, in natural language.
+
+    Attributes:
+        structure: Comments on the structure of the query
+        goal: The goal of the query explained succinctly
+    """
+
     structure: str
     goal: str
 
 
 class OptimizeQueryOutput(BaseModel):
+    """Output from the optimize query prompt.
+
+    Attributes:
+        query: The optimized SQL query.
+        explanation: Comments on the newly optimized query
+    """
+
     query: str
     explanation: str
 
 
 class OptimizeQueryInput(BaseModel):
+    """Input to the optimize query prompt.
+
+    Attributes:
+        query: The SQL query as provided.
+        goal: The goal of the query.
+        indices: The indices on the tables referenced by the query.
+        columns: The properties of the columns referenced by the query.
+        analyze: The output of the EXPLAIN ANALYZE on the query.
+    """
+
     query: str
     goal: str
     indices: Dict[str, Dict[str, str]]
@@ -88,6 +133,11 @@ class PrecinctTable:
         self.column_properties = self.fetch_columns()
 
     def fetch_indices(self) -> Dict[str, str]:
+        """Fetch indices on the table from the database.
+
+        Returns:
+            A dictionary of index names and definitions.
+        """
         query = """
         SELECT
             indexname AS index_name,
@@ -135,34 +185,41 @@ class PrecinctTable:
 
 
 class PrecinctQuery:
-    def __init__(self, query_str: str, conn: psycopg2.extensions.connection) -> None:
-        """
-        Initialize a PrecinctQuery instance.
+    """Represents a query and related information for the optimization process.
 
-        :param query_str: The SQL query string.
-        :param conn: The database connection object.
-        """
+    Attributes:
+        query_str: The SQL query string.
+        analysis: The output of the EXPLAIN ANALYZE on the query.
+        tables: The tables referenced by the query.
+    """
+
+    def __init__(
+        self, query_str: str, conn: psycopg2.extensions.connection, model: GPTModel
+    ) -> None:
         self.query_str = query_str
-        if not self.validate(conn):
+        self.conn = conn
+        self.model = model
+
+        if not self.validate():
             logger.error("Invalid query.")
             raise ValueError("Invalid query.")
 
-        self.analysis = self.execute_query_analysis(conn)
-        self.tables = self.get_tables(query_str, conn)
+        self.analysis = self.execute_query_analysis()
+        self.tables = self.get_tables(query_str)
 
-    def validate(self, conn: psycopg2.extensions.connection) -> bool:
+    def validate(self) -> bool:
         """
         Validate query by attempting to prepare it.
 
-        :param conn: The database connection object.
-        :return: True if the query is valid, False otherwise.
+        Returns:
+            True if query is valid, False otherwise.
         """
         parsed = sqlparse.parse(self.query_str)
         if not parsed:
             logger.warning("Failed to parse query.")
             return False
 
-        with conn.cursor() as cursor:
+        with self.conn.cursor() as cursor:
             try:
                 cursor.execute(
                     psycopg2.sql.SQL("PREPARE stmt AS {0}").format(
@@ -175,28 +232,40 @@ class PrecinctQuery:
                 return False
         return True
 
-    def get_tables(
-        self, query: str, conn: psycopg2.extensions.connection
-    ) -> List[PrecinctTable]:
-        """Parse SQL query and extract referenced table names."""
+    def get_tables(self, query: str) -> List[PrecinctTable]:
+        """Parse SQL query and extract referenced table names.
+
+        Args:
+            query: The SQL query string.
+        Returns:
+            A list of PrecinctTable objects, representing the tables referenced by the query.
+        """
         table_names = self.extract_table_names(query)
-        return [self.get_table(table_name, conn) for table_name in table_names]
+        return [self.get_table(table_name) for table_name in table_names]
 
     @cached(
         cache=LRUCache(maxsize=128),
-        key=lambda self, table_name, conn: hashkey(table_name),
+        key=lambda self, table_name: hashkey(table_name),
     )
-    def get_table(
-        self, table_name: str, conn: psycopg2.extensions.connection
-    ) -> PrecinctTable:
+    def get_table(self, table_name: str) -> PrecinctTable:
         """Fetch table information from database.
 
         Caches the table information to avoid repeated queries.
+        Args:
+            table_name: The name of the table.
+        Returns:
+            A PrecinctTable object, representing the table referenced by the query.
         """
-        return PrecinctTable(table_name, conn)
+        return PrecinctTable(table_name, self.conn)
 
     def extract_table_names(self, query: str) -> Set[str]:
-        """Parse SQL query and extract referenced table names."""
+        """Parse SQL query and extract referenced table names.
+
+        Args:
+            query: The SQL query string.
+        Returns:
+            A set of table names referenced by the query.
+        """
         table_names = set()
 
         parsed = sqlparse.parse(query)
@@ -214,14 +283,14 @@ class PrecinctQuery:
         logger.info(f"Extracted table names: {table_names}")
         return table_names
 
-    def execute_query_analysis(self, conn: psycopg2.extensions.connection) -> List[str]:
+    def execute_query_analysis(self) -> List[str]:
         """
         Run an EXPLAIN ANALYZE on the query and return the output.
 
-        :param conn: The database connection object.
-        :return: A list of analysis output strings.
+        Returns:
+            A list of analysis output strings.
         """
-        with conn.cursor() as cursor:
+        with self.conn.cursor() as cursor:
             try:
                 cursor.execute(f"EXPLAIN ANALYZE {self.query_str}")
                 return [plan[0] for plan in cursor.fetchall()]
@@ -229,37 +298,49 @@ class PrecinctQuery:
                 logger.error(f"Failed to execute query analysis: {str(e)}")
                 return []
 
-    def get_query_summary(self, clarification: Optional[str]) -> ExplainQueryOutput:
+    def get_query_summary(
+        self, clarification: Optional[str] = None
+    ) -> ExplainQueryOutput:
         """
         Get a natural language summary of the query and its goal.
 
-        :return: An instance of ExplainQueryOutput or None in case of failure.
+        Args:
+            clarification: Optional clarification on the nature or functionality of the query.
+        Returns:
+            An ExplainQueryOutput object.
         """
         try:
             query_input = ExplainQueryInput(
                 query=self.query_str, clarification=clarification
             )
-            return openai.ChatCompletion.create(
-                model="gpt-4",
+            query_out = openai.ChatCompletion.create(
+                model=self.model,
                 response_model=ExplainQueryOutput,
                 messages=[
                     {"role": "system", "content": PROMPTS["explain"]},
                     {"role": "user", "content": str(query_input)},
                 ],
             )
+
+            if not isinstance(query_out, ExplainQueryOutput):
+                raise ValueError("Failed to get query summary.")
+
+            return query_out
         except Exception as e:
             logger.error(f"Failed to get query summary: {str(e)}")
             raise e
 
     def get_optimized_query(
         self,
-        conn: psycopg2.extensions.connection = None,
         prior_clarification: Optional[str] = None,
     ) -> Tuple["PrecinctQuery", str]:
         """
         Get an optimized query based on the original query and related information
 
-        :return: An instance of PrecinctQuery and the optimized query string.
+        Args:
+            prior_clarification: Optional clarification on the nature or functionality of the query.
+        Returns:
+            A tuple of the optimized PrecinctQuery object and the explanation of the optimization.
         """
         try:
             query_input = OptimizeQueryInput(
@@ -273,15 +354,19 @@ class PrecinctQuery:
             )
 
             optimized_query_out = openai.ChatCompletion.create(
-                model="gpt-4",
+                model=self.model,
                 response_model=OptimizeQueryOutput,
                 messages=[
                     {"role": "system", "content": PROMPTS["optimize"]},
                     {"role": "user", "content": str(query_input)},
                 ],
             )
+            if not isinstance(optimized_query_out, OptimizeQueryOutput):
+                raise ValueError("Failed to optimize query.")
 
-            optimized_query = PrecinctQuery(optimized_query_out.query, conn=conn)
+            optimized_query = PrecinctQuery(
+                optimized_query_out.query, conn=self.conn, model=self.model
+            )
             return optimized_query, optimized_query_out.explanation
 
         except Exception as e:
