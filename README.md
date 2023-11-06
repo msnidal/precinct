@@ -64,14 +64,12 @@ Issue clarification to intent (y) to proceed, or (q) to quit (y/q/[intent]): I w
 Precinct will then analyze your query and provide feedback on how to optimize it. For example:
 
 ```bash
-Optimized query: select * from businesses
-
-Explanation: The original query is as optimized as it can be since it is a simple SELECT ALL command. All records and all columns from the table 'businesses' are selected. Considering the structure and scope of the query, there are no specific joins, conditions, aggregations, or sorting criteria that we could modify to improve performance. Therefore, the original query remains unchanged. However, be careful with using 'SELECT *' as this query will become slower as the number of columns or rows in the 'businesses' table grows.
-What would you like to do? (run/copy/cancel): c
+Optimized query: select * from businesses limit 10
+Explanation: The current query is already highly efficient, retrieving only 10 rows of data in a matter of milliseconds. Since the 'LIMIT' clause restricts the number of records returned, the query ensures minimal data transfer from the database to the application. Optimization refinements like adding WHERE clause or ordering of data will not make significant improvements in this specific scenario. Indices won't have an impact as the data fetched is minimal and not filtered or sorted. Therefore, optimizing this query is not necessary.
+Run query now with `r`, copy to clipboard with `c`, or cancel with `q` (r/c/q): c
 ```
 
-From here, you can 
-
+From here, you can run the query and preview some rows (the `--rows` parameter can be used to specify the max number to preview, although there is only rudimentary support for this at the moment). You can also copy the query to your clipboard and paste it into your editor.
 
 ## Authentication
 
