@@ -107,11 +107,12 @@ def get_connection(service_name, connection_string) -> psycopg2.extensions.conne
         ValueError: If both service_name and connection_string are provided.
         click.BadParameter: If neither service_name nor connection_string are provided.
     """
-    try:
-        conn = get_service_connection(service_name)
-        return conn
-    except Exception:
-        pass
+    if not connection_string:
+        try:
+            conn = get_service_connection(service_name)
+            return conn
+        except Exception:
+            pass
 
     if connection_string:
         logger.info(f"Using connection string {connection_string}...")

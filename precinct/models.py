@@ -72,11 +72,11 @@ class ExplainQueryOutput(BaseModel):
 
     Attributes:
         structure: Comments on the structure of the query
-        goal: The goal of the query explained succinctly
+        intent: The intent of the query explained succinctly
     """
 
     structure: str
-    goal: str
+    intent: str
 
 
 class OptimizeQueryOutput(BaseModel):
@@ -96,20 +96,20 @@ class OptimizeQueryInput(BaseModel):
 
     Attributes:
         query: The SQL query as provided.
-        goal: The goal of the query.
+        intent: The intent of the query.
         indices: The indices on the tables referenced by the query.
         columns: The properties of the columns referenced by the query.
         analyze: The output of the EXPLAIN ANALYZE on the query.
     """
 
     query: str
-    goal: str
+    intent: str
     indices: Dict[str, Dict[str, str]]
     columns: Dict[str, Dict[str, str]]
     analyze: List[str]
 
     def __str__(self) -> str:
-        return f"<query>{self.query}</query>\n<goal>{self.goal}</goal>\n<indices>{self.indices}</indices>\n<columns>{self.columns}</columns>\n<analyze>{self.analyze}</analyze>"
+        return f"<query>{self.query}</query>\n<intent>{self.intent}</intent>\n<indices>{self.indices}</indices>\n<columns>{self.columns}</columns>\n<analyze>{self.analyze}</analyze>"
 
 
 class PrecinctTable:
@@ -302,7 +302,7 @@ class PrecinctQuery:
         self, clarification: Optional[str] = None
     ) -> ExplainQueryOutput:
         """
-        Get a natural language summary of the query and its goal.
+        Get a natural language summary of the query and its intent.
 
         Args:
             clarification: Optional clarification on the nature or functionality of the query.
@@ -345,7 +345,7 @@ class PrecinctQuery:
         try:
             query_input = OptimizeQueryInput(
                 query=self.query_str,
-                goal=self.get_query_summary(prior_clarification).goal,
+                intent=self.get_query_summary(prior_clarification).intent,
                 indices={table.table_name: table.indices for table in self.tables},
                 columns={
                     table.table_name: table.column_properties for table in self.tables

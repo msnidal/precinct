@@ -1,12 +1,21 @@
 import pyperclip
 import click
 import json
+import os
 
 from precinct.models import PrecinctQuery, GPTModel
 from precinct.connection import get_connection
 from precinct.logging import get_logger
+
 logger = get_logger()
 
+
+def get_query_string(query_input: str):
+    """Determine if query_input is a query string or file path."""
+    if os.path.isfile(query_input):
+        with open(query_input, "r") as file:
+            return file.read()
+    return query_input
 
 
 @click.command(
@@ -14,23 +23,26 @@ logger = get_logger()
         "\nPrecinct: A SQL query LLM copilot for analyzing queries, suggesting indices, "
         "and providing optimizations. Currently supports PostgreSQL.\n\n"
         "Examples:\n\n"
-        '    precinct --query "SELECT * FROM table;"\n\n'
-        "    precinct --file path/to/your/file.sql\n\n"
+        '    precinct "SELECT * FROM table;"\n\n'
+        '    precinct "path/to/your/file.sql"\n\n'
     )
 )
-@click.option("--query", help="SQL query string.")
-@click.option("--file", type=click.Path(exists=True), help="File path to SQL query.")
+@click.argument("query", type=str, required=True, nargs=1)
 @click.option(
-    "--service",
-    "service",
+    "--uri",
     type=str,
-    help="PostgreSQL service name located in ~/.pg_service.conf or at PGSERVICEFILE.",
+    help="PostgreSQL connection URI, ie. 'postgresql://username:password@host:port/database'. Mutually exclusive with --service.",
 )
 @click.option(
-    "--connection-string",
-    "connection_string",
+    "--service",
     type=str,
-    help="PostgreSQL standard connection string, ie. 'postgresql://username:password@host:port/database'",
+    help="PostgreSQL service name as located in ~/.pg_service.conf or at specified path. Mutually exclusive with --uri.",
+)
+@click.option(
+    "--service-file",
+    type=click.Path(exists=True),
+    default=os.path.expanduser("~/.pg_service.conf"),
+    help="Path to PGSERVICEFILE. Optionally provide in conjunction with --service.",
 )
 @click.option(
     "--model",
@@ -39,12 +51,24 @@ logger = get_logger()
     help="Model to use.",
 )
 @click.option(
+    "--rows",
+    type=int,
+    default=10,
+    help="Number of rows to return from query at most. Typically used for previewing query results.",
+)
+@click.option(
     "--json", "json_io", is_flag=True, help="Enable VSCode optimized JSON I/O mode."
 )
-def main(query, file, service, connection_string, model, json_io):
-    if service and connection_string:
-        raise click.BadParameter("Cannot use both --service and --connection-string.")
-    conn = get_connection(service, connection_string)
+def main(query, uri, service, service_file, model, rows, json_io):
+    if service and uri:
+        raise click.UsageError("Options --service and --uri are mutually exclusive.")
+
+    query = get_query_string(query)
+
+    if service_file:
+        os.environ["PGSERVICEFILE"] = service_file
+
+    conn = get_connection(service, uri)
 
     # Special input mode for VSCode extension
     if json_io:
@@ -52,30 +76,20 @@ def main(query, file, service, connection_string, model, json_io):
         precinct_query = PrecinctQuery(query, conn, model)
         explanation = precinct_query.get_query_summary()
         # Output initial explanation in JSON
-        print(json.dumps({"query": query, "goal": explanation.goal}))
+        print(json.dumps({"query": query, "intent": explanation.intent}))
 
         # Wait for JSON input from VSCode
         input_json = json.loads(input())
-        user_modified_goal = input_json.get("goal")
+        user_modified_intent = input_json.get("intent")
 
-        # Perform optimization based on the modified goal
-        new_query, explanation = precinct_query.get_optimized_query(user_modified_goal)
+        # Perform optimization based on the modified intent
+        new_query, explanation = precinct_query.get_optimized_query(
+            user_modified_intent
+        )
         print(
             json.dumps(
                 {"optimized_query": new_query.query_str, "explanation": explanation}
             )
-        )
-        return
-
-    # Get query
-    if query:
-        pass
-    elif file:
-        with open(file, "r") as input_file:
-            query = input_file.read()
-    else:
-        click.secho(
-            "Either --query, --file or --interactive must be provided.", fg="red"
         )
         return
 
@@ -86,15 +100,15 @@ def main(query, file, service, connection_string, model, json_io):
         print("Invalid query.")
         return
 
-    # Gather any clarifications on query goal
+    # Gather any clarifications on query intent
     do_proceed = False
     clarification = None
     while not do_proceed:
         explanation = precinct_query.get_query_summary(clarification)
         print(f"Query: {query}")
-        print(f"Goal: {explanation.goal}")
+        print(f"Intent: {explanation.intent}")
         confirm = input(
-            "Issue clarification to goal (y) to proceed, or (q) to quit (y/q/[goal]): "
+            "Accept intent with `y`, quit with `q` or type out clarification to intent (y/q/[intent]): "
         )
         if confirm.lower() == "y":
             do_proceed = True
@@ -116,16 +130,18 @@ def main(query, file, service, connection_string, model, json_io):
         logger.error("Unable to optimize query. Exiting")
         return
 
-    print(f"Optimized query: {new_query.query_str}\n\nExplanation: {explanation}")
-    action_prompt = "What would you like to do? (run/copy/cancel)"
-    action = input(action_prompt + ": ")
+    print(f"\nOptimized query: {new_query.query_str}\nExplanation: {explanation}")
+    action = input(
+        "Run query now with `r`, copy to clipboard with `c`, or cancel with `q` (r/c/q): "
+    )
 
-    if action == "run":
+    if action.lower() == "r":
         with conn.cursor() as cursor:
             cursor.execute(new_query.query_str)
-    elif action == "copy":
+            print(cursor.fetchmany(rows))
+    elif action.lower() == "c":
         pyperclip.copy(new_query.query_str)
-    elif action == "cancel":
+    else:
         print("Operation cancelled.")
 
 

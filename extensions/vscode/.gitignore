@@ -45,6 +45,7 @@ bower_components
 !.vscode/launch.json
 !.vscode/extensions.json
 .vscode-test
+*.vsix
 
 # misc
 .sass-cache

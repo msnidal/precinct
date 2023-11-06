@@ -5,7 +5,7 @@ Welcome to Precinct SQL - your artificial intelligence assistant for optimizing 
 ## Features
 
 - **SQL Query Optimization**: Improve your SQL with AI-powered suggestions.
-- **Interactive Goal Setting**: Refine AI analysis goals through user interaction.
+- **Interactive Intent Setting**: Refine AI analysis intents through user interaction.
 - **Diff View**: Compare and review optimization suggestions with your original query.
 - **Streamlined VS Code Integration**: Experience a frictionless workflow within the editor's environment.
 

@@ -4,6 +4,10 @@
   "displayName": "Precinct SQL",
   "description": "SQL copilot to optimize your queries with GPT",
   "version": "0.1.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/msnidal/precinct"
+  },
   "engines": {
     "vscode": "^1.83.0"
   },
@@ -11,7 +15,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onLanguage:sql"
+    "onLanguage:sql",
+    "onLanguage:jinja-sql"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -19,6 +24,10 @@
       {
         "command": "precinct-sql.optimizeSQL",
         "title": "Precinct: Optimize SQL"
+      },
+      {
+        "command": "precinct-sql.setupConnection",
+        "title": "Precinct: Setup PostgreSQL Connection"
       }
     ],
     "configuration": {
@@ -33,15 +42,25 @@
           ],
           "description": "Choose the optimization model for Precinct."
         },
-        "precinct-sql.connectionString": {
-          "type": "string",
-          "default": "",
-          "description": "The PostgreSQL connection string."
-        },
         "precinct-sql.cliPath": {
           "type": "string",
           "default": "",
           "description": "Custom path or command to execute Precinct."
+        },
+        "precinct-sql.useServiceFile": {
+          "type": "boolean",
+          "default": null,
+          "description": "Set to true to use PGSERVICEFILE for PostgreSQL connections."
+        },
+        "precinct-sql.serviceFilePath": {
+          "type": "string",
+          "default": "",
+          "description": "The file path for PGSERVICEFILE."
+        },
+        "precinct-sql.serviceDefinition": {
+          "type": "string",
+          "default": "",
+          "description": "The service definition to use from the PGSERVICEFILE."
         }
       }
     }
