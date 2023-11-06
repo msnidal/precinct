@@ -63,7 +63,7 @@ The extension automatically prompts users for these details during the initial s
 
 Feedback and contributions are welcome. If you encounter any issues or wish to improve the extension, please [file an issue or submit a pull request](https://github.com/msnidal/precinct).
 
-## What's New in 0.1.3
+## What's New in 0.1.4
 
 - Setup function for easy configuration.
 - Optimized SQL queries with diff view comparison.

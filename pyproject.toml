@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 
 [project]
 name = "precinct"
-version = "0.1.3"
+version = "0.1.4"
 description = "Your SQL query AI copilot"
 authors = [
   {name = "mark.snidal@gmail.com", email = "mark.snidal@gmail.com"}

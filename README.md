@@ -6,11 +6,12 @@ Precinct is a SQL query LLM copilot that helps analyze your queries, pick up ind
 
 ## Features
 
-- Input from a file or plain text.
-- Checks for relevant tables.
-- Retrieves table indices.
-- Runs `EXPLAIN ANALYZE` for query diagnosis.
-- Offers concise, actionable feedback.
+- Optimize SQL queries using GPT-4 or GPT-3.5-turbo.
+- Exposese relevant metadata in the LLM prompt including:
+  - Query intent.
+  - Table indices.
+  - Query execution plan.
+- Run in a shell or as a VSCode extension. 
 
 See [Usage](#usage) for more details.
 
@@ -19,7 +20,8 @@ See [Usage](#usage) for more details.
 ### Requirements
 
 - Python >=3.9
-- PostgreSQL (More databases support coming soon)
+- Credentials to a PostgreSQL database (More databases support coming soon)
+- OpenAI API key (See [Authentication](#authentication))
 
 ### Installation
 
@@ -57,7 +59,10 @@ Options:
                                  ~/.pg_service.conf or at specified path.
                                  Mutually exclusive with --uri.
   --service-file PATH            Path to PGSERVICEFILE. Optionally provide in
-                                 conjunction with --service.
+                                 conjunction with --service.  [default:
+                                 (~/.pg_service.conf)]
+  --openai-api-key TEXT          OpenAI API key for authentication.  [default:
+                                 (from environment variable OPENAI_API_KEY)]
   --model [gpt-4|gpt-3.5-turbo]  Model to use.
   --rows INTEGER                 Number of rows to return from query at most.
                                  Typically used for previewing query results.
@@ -70,13 +75,13 @@ Options:
 To analyze a query from a file:
 
 ```bash
-python precinct.py "path/to/your/file.sql"
+precinct "path/to/your/file.sql"
 ```
 
 To analyze a plaintext query:
 
 ```bash
-python precinct.py "SELECT * FROM table;"
+precinct "SELECT * FROM table;"
 ```
 
 ### Specify intent
@@ -114,6 +119,10 @@ For database authentication, Precinct supports the following methods:
 - [Connection Service File](#connection-service-file)
 - [Connection URI](#connection-uri)
 - [Environment Variables](#environment-variables)
+
+### OpenAI API Key
+
+To use Precinct, you'll need an OpenAI API key. You can set this using the `OPENAI_API_KEY` environment variable or via the `--openai-api-key` command line argument.
 
 ### Connection Service File
 
