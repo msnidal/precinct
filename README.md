@@ -7,11 +7,11 @@ Precinct is a SQL query LLM copilot that helps analyze your queries, pick up ind
 ## Features
 
 - Optimize SQL queries using GPT-4 or GPT-3.5-turbo.
-- Exposese relevant metadata in the LLM prompt including:
+- Exposes relevant metadata to the language model including:
   - Query intent.
   - Table indices.
   - Query execution plan.
-- Run in a shell or as a VSCode extension. 
+- Run in a shell or as a VSCode extension.
 
 See [Usage](#usage) for more details.
 
