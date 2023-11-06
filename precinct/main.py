@@ -49,7 +49,7 @@ def get_query_string(query_input: str):
 @click.option(
     "--openai-api-key",
     type=str,
-    default=os.environ.get('OPENAI_API_KEY', ''),
+    default=os.environ.get("OPENAI_API_KEY", ""),
     help="OpenAI API key for authentication.",
     show_default="from environment variable OPENAI_API_KEY",
 )

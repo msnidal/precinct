@@ -7,6 +7,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 from precinct.logging import get_logger
+
 logger = get_logger()
 
 
