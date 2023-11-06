@@ -12,12 +12,16 @@ Precinct is a SQL query LLM copilot that helps analyze your queries, pick up ind
 - Runs `EXPLAIN ANALYZE` for query diagnosis.
 - Offers concise, actionable feedback.
 
-## Requirements
+See [Usage](#usage) for more details.
+
+## Setup
+
+### Requirements
 
 - Python >=3.7
 - PostgreSQL (More databases support coming soon)
 
-## Installation
+### Installation
 
 ```bash
 pip install precinct
@@ -30,6 +34,38 @@ pip install -e .[dev]
 ```
 
 ## Usage
+
+Here is the `--help` output:
+
+```bash
+Usage: precinct [OPTIONS] QUERY
+
+  Precinct: A SQL query LLM copilot for analyzing queries, suggesting indices,
+  and providing optimizations. Currently supports PostgreSQL.
+
+  Examples:
+
+      precinct "SELECT * FROM table;"
+
+      precinct "path/to/your/file.sql"
+
+Options:
+  --uri TEXT                     PostgreSQL connection URI, ie. 'postgresql://
+                                 username:password@host:port/database'.
+                                 Mutually exclusive with --service.
+  --service TEXT                 PostgreSQL service name as located in
+                                 ~/.pg_service.conf or at specified path.
+                                 Mutually exclusive with --uri.
+  --service-file PATH            Path to PGSERVICEFILE. Optionally provide in
+                                 conjunction with --service.
+  --model [gpt-4|gpt-3.5-turbo]  Model to use.
+  --rows INTEGER                 Number of rows to return from query at most.
+                                 Typically used for previewing query results.
+  --json                         Enable VSCode optimized JSON I/O mode.
+  --help                         Show this message and exit.
+```
+
+### Getting started
 
 To analyze a query from a file:
 
