@@ -18,7 +18,7 @@ See [Usage](#usage) for more details.
 
 ### Requirements
 
-- Python >=3.7
+- Python >=3.9
 - PostgreSQL (More databases support coming soon)
 
 ### Installation

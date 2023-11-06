@@ -2,6 +2,7 @@ import pyperclip
 import click
 import json
 import os
+import openai
 
 from precinct.models import PrecinctQuery, GPTModel
 from precinct.connection import get_connection
@@ -43,6 +44,14 @@ def get_query_string(query_input: str):
     type=click.Path(exists=True),
     default=os.path.expanduser("~/.pg_service.conf"),
     help="Path to PGSERVICEFILE. Optionally provide in conjunction with --service.",
+    show_default="~/.pg_service.conf",
+)
+@click.option(
+    "--openai-api-key",
+    type=str,
+    default=os.environ.get('OPENAI_API_KEY', ''),
+    help="OpenAI API key for authentication.",
+    show_default="from environment variable OPENAI_API_KEY",
 )
 @click.option(
     "--model",
@@ -59,11 +68,14 @@ def get_query_string(query_input: str):
 @click.option(
     "--json", "json_io", is_flag=True, help="Enable VSCode optimized JSON I/O mode."
 )
-def main(query, uri, service, service_file, model, rows, json_io):
+def main(query, uri, service, service_file, openai_api_key, model, rows, json_io):
     if service and uri:
         raise click.UsageError("Options --service and --uri are mutually exclusive.")
 
     query = get_query_string(query)
+
+    if openai_api_key:
+        openai.api_key = openai_api_key
 
     if service_file:
         os.environ["PGSERVICEFILE"] = service_file

@@ -12,6 +12,12 @@ function activate(context) {
 		const configuration = vscode.workspace.getConfiguration('precinct-sql');
 		const secrets = context.secrets;
 
+		const apiKey = await askForInput('Enter your OpenAI API key', '', true);
+		if (apiKey) {
+			context.secrets.store('openaiApiKey', apiKey);
+			vscode.window.showInformationMessage('OpenAI API key saved securely.');
+		}
+
 		const userChoice = await vscode.window.showQuickPick(
 			['Use individual credentials', 'Use PGSERVICEFILE'],
 			{ placeHolder: 'How would you like to provide PostgreSQL credentials?' }
@@ -77,24 +83,31 @@ function activate(context) {
 			return;
 		}
 
-		let originalUri = editor.document.uri;
 		const secrets = context.secrets;
 
-		const filePath = originalUri.fsPath;
+		const sqlText = editor.document.getText();
 		const configuration = vscode.workspace.getConfiguration('precinct-sql');
 		const precinctModel = configuration.get('model');
 		const useServiceFileSetting = configuration.get('useServiceFile');
 		const serviceFilePath = configuration.get('serviceFilePath') || path.join(os.homedir(), '.pg_service.conf');
 		const serviceDefinition = configuration.get('serviceDefinition');
 		const customPath = configuration.get('cliPath');
+		const apiKey = await secrets.get('openaiApiKey');
+
+		if (!apiKey) {
+			vscode.window.showErrorMessage('No OpenAI API key found. Please set it up.');
+			await vscode.commands.executeCommand('precinct-sql.setupConnection');
+			return;
+		}
 
 		// Prepare parameters based on settings
 		let params = {};
+		params.apiKey = apiKey;
 		if (useServiceFileSetting) {
 			params.serviceFilePath = serviceFilePath;
 			params.service = serviceDefinition;
 		} else {
-			connectionString = await secrets.get('precinctSQLConnectionString'); // retrieve previously stored connection string
+			connectionString = await secrets.get('precinctSQLConnectionString');
 			if (!connectionString) {
 				await setupConnectionWrapper(); // Ensure credentials are set up
 				connectionString = await secrets.get('precinctSQLConnectionString');
@@ -102,7 +115,7 @@ function activate(context) {
 			params.connectionString = connectionString;
 		}
 
-		executePrecinct(filePath, precinctModel, params, editor, precinctCommand)
+		executePrecinct(sqlText, precinctModel, params, editor, customPath)
 			.catch((error) => {
 				if (error.message.includes('command not found')) {
 					if (!customPath) {
@@ -120,52 +133,62 @@ function activate(context) {
 	context.subscriptions.push(setupConnectionCommand);
 }
 
-async function executePrecinct(filePath, precinctModel, params, editor, customPath) {
+function executePrecinct(sqlText, precinctModel, params, editor, customPath) {
 	// Construct command arguments based on params passed
 	const precinctCommand = customPath || 'precinct';
-	let commandArgs = `--file "${filePath}" --model ${precinctModel}`;
+	let commandArgs = `"${sqlText}" --model ${precinctModel} --openai-api-key ${params.apiKey}`;
 	if (params.serviceFilePath && params.service) {
-		commandArgs += ` --service ${params.service} --service-file-path "${params.serviceFilePath}"`;
+		commandArgs += ` --service ${params.service} --service-file "${params.serviceFilePath}"`;
 	} else if (params.connectionString) {
-		commandArgs += ` --connection-string "${params.connectionString}"`;
+		commandArgs += ` --uri "${params.connectionString}"`;
 	}
 	const command = `${precinctCommand} ${commandArgs} --json`;
+	//vscode.window.showInformationMessage(`Running Precinct with command: ${command}`);
 
 	return new Promise((resolve, reject) => {
 		const precinctProcess = spawn(command, { shell: true, stdio: ['pipe', 'pipe', 'pipe'] });
 
-		precinctProcess.on('close', (code) => {
-			if (code !== 0) {
-				reject(new Error('Precinct command failed with exit code ' + code));
-			} else {
-				resolve();
-			}
-		});
-
-		precinctProcess.stderr.on('data', (data) => {
-			const dataStr = data.toString();
-			console.error(`stderr: ${dataStr}`); // Log the error
-			if (dataStr.includes('command not found')) {
-				precinctProcess.kill(); // terminate the process
-				reject(new Error('Precinct command not found. Please ensure that Precinct is installed and properly configured.'));
-			}
-		});
-
-		for await (const data of precinctProcess.stdout) {
+		precinctProcess.stdout.on('data', async (data) => {
 			try {
-				let output = JSON.parse(data.toString());
+				const output = JSON.parse(data);
 				if (output.intent) {
 					let userInput = await vscode.window.showInputBox({ prompt: 'Modify the intent as needed', value: output.intent });
-					precinctProcess.stdin.write(JSON.stringify({ intent: userInput }) + "\n"); // Make sure to add newline to signify input end
+					if (userInput === undefined) {
+						throw new Error('Input for intent was cancelled by the user.');
+					}
+					precinctProcess.stdin.write(JSON.stringify({ intent: userInput }) + "\n");
 				} else if (output.optimized_query) {
 					await showDiff(editor.document, output.optimized_query);
 				}
+				resolve();
 			} catch (error) {
-				vscode.window.showErrorMessage('Failed to parse output from Precinct.');
-				precinctProcess.kill(); // terminate the process if there's an error
-				break; // exit the loop if an error occurs
+				reject(error);
 			}
-		}
+		});
+
+		let errorData = '';
+		precinctProcess.stderr.on('data', (data) => {
+			errorData += data.toString();
+		});
+
+		precinctProcess.stderr.on('end', (error) => {
+			if (errorData) {
+				console.error(`stderr: ${errorData}`); // Logs to the Extension Host log
+				precinctProcess.kill();
+				reject(new Error(errorData));
+			}
+		});
+
+		precinctProcess.on('error', (error) => {
+			precinctProcess.kill();
+			reject(error);
+		});
+
+		precinctProcess.on('close', (code) => {
+			if (code !== 0) {
+				reject(new Error('Precinct command failed with exit code ' + code));
+			}
+		});
 	});
 }
 
@@ -184,14 +207,27 @@ async function askForInput(prompt, defaultValue = '', isPassword = false) {
 
 function offerToInstallPrecinct() {
 	// Use the integrated terminal to offer the installation of Precinct
-	const installMessage = 'Precinct is not installed. Would you like to install it now?';
-	vscode.window.showInformationMessage(installMessage, 'Yes', 'No').then(selection => {
-		if (selection === 'Yes') {
+	const installMessage = 'Precinct is not installed or not found in PATH. Would you like to install it or specify the path now?';
+	vscode.window.showInformationMessage(installMessage, 'Install', 'Specify Path', 'Ignore').then(selection => {
+		if (selection === 'Install') {
 			const terminal = vscode.window.createTerminal({ name: 'Install Precinct' });
-			terminal.sendText('pip install precinct');
+			terminal.sendText('pip install precinct'); // You might want to use a more specific pip command
 			terminal.show();
+		} else if (selection === 'Specify Path') {
+			askForPrecinctPath();
 		}
 	});
+}
+
+async function askForPrecinctPath() {
+	const path = await vscode.window.showInputBox({
+		placeHolder: 'Enter the full path to your precinct installation (e.g., /usr/local/bin/precinct)',
+	});
+	if (path) { // Validate the path here or during first use
+		const configuration = vscode.workspace.getConfiguration('precinct-sql');
+		await configuration.update('cliPath', path, vscode.ConfigurationTarget.Global);
+		vscode.window.showInformationMessage('Precinct path saved. Please retry the operation.');
+	}
 }
 
 async function showDiff(document, proposedQuery) {

@@ -1,1 +1,2 @@
 recursive-exclude extensions *
+include precinct/*.yml
