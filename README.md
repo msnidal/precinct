@@ -13,7 +13,11 @@ Precinct is a SQL query LLM copilot that helps analyze your queries, pick up ind
   - Query execution plan.
 - Run in a shell or as a VSCode extension.
 
-See [Usage](#usage) for more details.
+See [Usage](#usage) for more details. 
+
+## VSCode Extension
+
+A Precinct VSCode extension is [available here](https://marketplace.visualstudio.com/items?itemName=msnidal.precinct-sql), for more details see the [`/extensions/vscode` README.md](/extensions/vscode/README.md).
 
 ## Setup
 

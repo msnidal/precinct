@@ -1,8 +1,9 @@
 {
   "publisher": "msnidal",
   "name": "precinct-sql",
-  "displayName": "Precinct SQL",
-  "description": "SQL copilot to optimize your queries with GPT",
+  "displayName": "Precinct SQL Copilot",
+  "description": "SQL AI copilot to optimize your queries against a PostgreSQL database.",
+  "icon": "images/precinct.png",
   "version": "0.1.4",
   "repository": {
     "type": "git",
